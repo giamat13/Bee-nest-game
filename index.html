@@ -350,7 +350,7 @@
         
         // קבועי תדירות
         const BASE_AUTO_SELL_INTERVAL_MS = 5000; // 5.0 שניות
-        const MIN_AUTO_SELL_INTERVAL_MS = 100;  // 0.1 שניות - המהירות המיידית
+        const MIN_AUTO_SELL_INTERVAL_MS = 100;  // 0.1 שניות - המהירות המיידית
 
         // הגדרת מצב המשחק הראשוני (Defaults)
         const DEFAULT_GAME_STATE = {
@@ -416,6 +416,7 @@
         
         function calculateProfitSellPrice() {
             // רווח התחלתי: 15₪ עבור 10 דבש. עולה ב-50% (פקטור 1.5) לרמה
+            // הערך תמיד מעוגל כלפי מטה (Math.floor) כדי להבטיח רווח שלם ליחידת בסיס (10 דבש).
             return Math.floor(15 * Math.pow(1.5, gameState.profitLevel - 1));
         }
 
@@ -447,7 +448,8 @@
                 autoSellIntervalId = setInterval(function() {
                     const quantity = calculateSaleQuantity(); 
                     const pricePer10 = calculateProfitSellPrice(); 
-                    const totalMoneyReceived = (quantity / 10) * pricePer10;
+                    // FIX: לוודא שהרווח הכולל הוא מספר שלם (₪)
+                    const totalMoneyReceived = Math.floor((quantity / 10) * pricePer10);
 
                     if (gameState.honey >= quantity) {
                         gameState.honey -= quantity;
@@ -469,8 +471,9 @@
             // חישוב המדדים
             var production = gameState.bees * gameState.hiveLevel * gameState.speedLevel * 0.1;
             const currentSaleQuantity = calculateSaleQuantity();
-            const pricePer10 = calculateProfitSellPrice();
-            const totalMoneyPerSale = (currentSaleQuantity / 10) * pricePer10;
+            const pricePer10 = calculateProfitSellPrice(); 
+            // FIX: לוודא שהרווח הכולל המוצג הוא מספר שלם (₪)
+            const totalMoneyPerSale = Math.floor((currentSaleQuantity / 10) * pricePer10);
             const currentAutoSellInterval = calculateAutoSellInterval();
             
             // עדכון המדדים הראשיים
@@ -496,7 +499,7 @@
             }
 
 
-            // עדכון מחיר המכירה הידנית
+            // עדכון מחיר המכירה הידנית (ומכאן גם האוטומטית)
             document.getElementById("manual-sell-price").textContent = `${currentSaleQuantity} דבש = ${totalMoneyPerSale}₪`;
 
             // עדכון רמות
@@ -575,7 +578,8 @@
         function sellHoney() {
             const quantity = calculateSaleQuantity(); // כמות דבש למכירה
             const pricePer10 = calculateProfitSellPrice(); // רווח ל-10 יחידות
-            const totalMoneyReceived = (quantity / 10) * pricePer10; // רווח כולל
+            // FIX: ודא שהרווח הכולל הוא מספר שלם
+            const totalMoneyReceived = Math.floor((quantity / 10) * pricePer10); // רווח כולל
 
             if (gameState.honey >= quantity) {
                 gameState.honey -= quantity;
