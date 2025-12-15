@@ -321,6 +321,8 @@
                     <div class="upgrade-name">🤖 מכירה אוטומטית</div>
                     <div class="upgrade-desc">מוכרת דבש אוטומטית. רמת תדירות: <span id="auto-sell-level-display">1</span></div>
                     <div class="upgrade-level">תדירות נוכחית: <span id="auto-sell-speed">5.0 שניות</span></div>
+                    <!-- הוספת סטטוס חסר -->
+                    <div class="upgrade-desc">סטטוס: <span id="auto-sell-status">לא נרכש</span></div> 
                 </div>
                 <div id="auto-sell-control">
                     <button class="upgrade-btn" id="auto-sell-btn-buy" onclick="buyAutoSell()">
@@ -348,7 +350,7 @@
         
         // קבועי תדירות
         const BASE_AUTO_SELL_INTERVAL_MS = 5000; // 5.0 שניות
-        const MIN_AUTO_SELL_INTERVAL_MS = 100;  // 0.1 שניות - המהירות המיידית
+        const MIN_AUTO_SELL_INTERVAL_MS = 100;  // 0.1 שניות - המהירות המיידית
 
         // הגדרת מצב המשחק הראשוני (Defaults)
         const DEFAULT_GAME_STATE = {
@@ -357,11 +359,11 @@
             bees: 3,
             hiveLevel: 1,
             speedLevel: 1,
-            profitLevel: 1,           // רמת רווחיות
-            saleQuantityLevel: 1,     // רמת כמות המכירה בבת אחת
-            autoSellBought: false,    // נרכש או לא
-            autoSellActive: false,    // פעיל או כבוי
-            autoSellLevel: 1          // רמת תדירות המכירה
+            profitLevel: 1,           // רמת רווחיות
+            saleQuantityLevel: 1,     // רמת כמות המכירה בבת אחת
+            autoSellBought: false,    // נרכש או לא
+            autoSellActive: false,    // פעיל או כבוי
+            autoSellLevel: 1          // רמת תדירות המכירה
         };
 
         let gameState = { ...DEFAULT_GAME_STATE };
@@ -395,7 +397,8 @@
                     gameState.profitLevel = parseInt(gameState.profitLevel) || DEFAULT_GAME_STATE.profitLevel;
                     gameState.saleQuantityLevel = parseInt(gameState.saleQuantityLevel) || DEFAULT_GAME_STATE.saleQuantityLevel; 
                     gameState.autoSellBought = !!gameState.autoSellBought;
-                    gameState.autoSellActive = !!gameState.autoSellActive;
+                    // אם נרכש, מגדירים את 'autoSellActive' ל-false כברירת מחדל בעת טעינה, אלא אם נשמר במפורש אחרת
+                    gameState.autoSellActive = loadedData.autoSellBought && (loadedData.autoSellActive !== false); 
                     gameState.autoSellLevel = parseInt(gameState.autoSellLevel) || DEFAULT_GAME_STATE.autoSellLevel;
                     
                     showNotification("✓ המשחק נטען בהצלחה!", true);
@@ -434,6 +437,7 @@
             // מנקה את הלולאה הקודמת אם קיימת
             if (autoSellIntervalId !== null) {
                 clearInterval(autoSellIntervalId);
+                autoSellIntervalId = null; // אפס את ה-ID לאחר הניקוי
             }
             
             if (gameState.autoSellBought && gameState.autoSellActive) {
@@ -455,7 +459,6 @@
 
                 console.log(`מכירה אוטומטית הופעלה. תדירות: ${interval / 1000} שניות.`);
             } else {
-                autoSellIntervalId = null;
                 console.log("מכירה אוטומטית כבויה או לא נרכשה.");
             }
         }
@@ -480,8 +483,10 @@
             
             // הצגת תדירות המכירה האוטומטית
             const intervalDisplayEl = document.getElementById("auto-sell-interval-display");
+            const isMaxSpeed = currentAutoSellInterval <= MIN_AUTO_SELL_INTERVAL_MS;
+
             if (gameState.autoSellBought) {
-                 if (currentAutoSellInterval === MIN_AUTO_SELL_INTERVAL_MS) {
+                 if (isMaxSpeed) {
                     intervalDisplayEl.textContent = 'מיידי (0.1 שניות)';
                  } else {
                     intervalDisplayEl.textContent = (currentAutoSellInterval / 1000).toFixed(1) + ' שניות';
@@ -501,7 +506,7 @@
             document.getElementById("profit-level").textContent = gameState.profitLevel;
             document.getElementById("sale-quantity-level-display").textContent = currentSaleQuantity;
             document.getElementById("auto-sell-level-display").textContent = gameState.autoSellLevel;
-            document.getElementById("auto-sell-speed").textContent = (currentAutoSellInterval / 1000).toFixed(1) + ' שניות';
+            document.getElementById("auto-sell-speed").textContent = isMaxSpeed ? 'מיידי' : (currentAutoSellInterval / 1000).toFixed(1) + ' שניות';
 
             // מחשב את העלות על בסיס הרמה
             document.getElementById("bee-cost").textContent = Math.floor(20 * Math.pow(1.5, gameState.bees - DEFAULT_GAME_STATE.bees)); 
@@ -520,10 +525,8 @@
                 autoSellBuyBtn.style.display = 'none';
                 autoSellToggleBtn.style.display = 'inline-block';
                 
-                const isMaxSpeed = currentAutoSellInterval === MIN_AUTO_SELL_INTERVAL_MS;
-                
                 if (isMaxSpeed) {
-                    autoSellUpgradeBtn.textContent = 'מיידי (מהירות מקסימלית)';
+                    autoSellUpgradeBtn.textContent = 'מהירות מקסימלית';
                     autoSellUpgradeBtn.style.display = 'inline-block';
                     autoSellUpgradeBtn.disabled = true;
                 } else {
@@ -660,6 +663,8 @@
                 updateDisplay();
                 startAutoSellInterval(); // הפעלת הלולאה
                 saveState();
+            } else if (gameState.autoSellBought) {
+                 showNotification("❌ המכירה האוטומטית כבר נרכשה!", false);
             } else {
                 showNotification("❌ אין מספיק כסף! (עלות: 250₪)", false);
             }
@@ -693,7 +698,7 @@
                 startAutoSellInterval(); // הפעלת הלולאה מחדש עם תדירות חדשה
                 saveState(); 
             } else {
-                showNotification("❌ אין מספיק כסף!", false);
+                showNotification("❌ אין מספיק כסף! (צריך " + cost + "₪)", false);
             }
         }
         
@@ -702,6 +707,7 @@
         setInterval(function() {
             var production = gameState.bees * gameState.hiveLevel * gameState.speedLevel * 0.1;
             gameState.honey += production;
+            // מעדכן תצוגה ושומר רק אם היה שינוי משמעותי, או פשוט מעדכן תמיד לשמירה על נראות
             updateDisplay();
             saveState(); 
         }, 1000);
