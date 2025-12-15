@@ -238,6 +238,12 @@
                 <div class="stat-label">🍯 כמות מכירה</div>
                 <div class="stat-value" id="sale-quantity-display">10</div>
             </div>
+            <!-- סטטוס תדירות מכירה אוטומטית -->
+            <div class="stat-item">
+                <div class="stat-label">⏱️ תדירות אוטומטית</div>
+                <div class="stat-value" id="auto-sell-interval-display">N/A</div>
+            </div>
+            
         </div>
         
         <div class="actions">
@@ -309,12 +315,12 @@
                 </button>
             </div>
 
-            <!-- מכירה אוטומטית - כעת מיידית ורציפה -->
+            <!-- שדרוג מכירה אוטומטית (רכישה + הפעלה/כיבוי + שדרוג תדירות) -->
             <div class="upgrade-item">
                 <div class="upgrade-info">
-                    <div class="upgrade-name">🤖 מכירה אוטומטית (מיידית)</div>
-                    <div class="upgrade-desc">מוכרת דבש אוטומטית באופן מיידי (כל 0.1 שניות). אין שדרוג תדירות.</div>
-                    <div class="upgrade-level">סטטוס: <span id="auto-sell-status">לא נרכש</span></div>
+                    <div class="upgrade-name">🤖 מכירה אוטומטית</div>
+                    <div class="upgrade-desc">מוכרת דבש אוטומטית. רמת תדירות: <span id="auto-sell-level-display">1</span></div>
+                    <div class="upgrade-level">תדירות נוכחית: <span id="auto-sell-speed">5.0 שניות</span></div>
                 </div>
                 <div id="auto-sell-control">
                     <button class="upgrade-btn" id="auto-sell-btn-buy" onclick="buyAutoSell()">
@@ -322,6 +328,9 @@
                     </button>
                     <button class="toggle-btn" id="auto-sell-btn-toggle" onclick="toggleAutoSell()" style="display: none;">
                         הפעל
+                    </button>
+                    <button class="upgrade-btn" id="auto-sell-btn-upgrade" onclick="upgradeAutoSellFrequency()" style="display: none;">
+                        שדרג תדירות (<span id="auto-sell-freq-cost">250</span>₪)
                     </button>
                 </div>
             </div>
@@ -337,8 +346,9 @@
         const STORAGE_KEY = 'honeybeeGameSave';
         let autoSellIntervalId = null; // ID ללולאת המכירה האוטומטית
         
-        // קבוע: תדירות המכירה האוטומטית המיידית
-        const AUTO_SELL_INTERVAL_MS = 100; // 0.1 שניות
+        // קבועי תדירות
+        const BASE_AUTO_SELL_INTERVAL_MS = 5000; // 5.0 שניות
+        const MIN_AUTO_SELL_INTERVAL_MS = 100;  // 0.1 שניות - המהירות המיידית
 
         // הגדרת מצב המשחק הראשוני (Defaults)
         const DEFAULT_GAME_STATE = {
@@ -350,8 +360,8 @@
             profitLevel: 1,           // רמת רווחיות
             saleQuantityLevel: 1,     // רמת כמות המכירה בבת אחת
             autoSellBought: false,    // נרכש או לא
-            autoSellActive: false     // פעיל או כבוי
-            // autoSellLevel הוסר
+            autoSellActive: false,    // פעיל או כבוי
+            autoSellLevel: 1          // רמת תדירות המכירה
         };
 
         let gameState = { ...DEFAULT_GAME_STATE };
@@ -386,7 +396,7 @@
                     gameState.saleQuantityLevel = parseInt(gameState.saleQuantityLevel) || DEFAULT_GAME_STATE.saleQuantityLevel; 
                     gameState.autoSellBought = !!gameState.autoSellBought;
                     gameState.autoSellActive = !!gameState.autoSellActive;
-                    // gameState.autoSellLevel הוסר מהטעינה
+                    gameState.autoSellLevel = parseInt(gameState.autoSellLevel) || DEFAULT_GAME_STATE.autoSellLevel;
                     
                     showNotification("✓ המשחק נטען בהצלחה!", true);
                 } else {
@@ -411,6 +421,13 @@
             return 10 * Math.pow(2, gameState.saleQuantityLevel - 1);
         }
 
+        function calculateAutoSellInterval() {
+            // התדירות ההתחלתית היא 5000ms. יורדת ב-10% (פקטור 0.9) לרמה
+            let interval = BASE_AUTO_SELL_INTERVAL_MS * Math.pow(0.9, gameState.autoSellLevel - 1);
+            // מגבילים את המינימום ל-100ms (מיידי)
+            return Math.max(interval, MIN_AUTO_SELL_INTERVAL_MS);
+        }
+
         // --- לוגיקת לולאת מכירה אוטומטית ---
 
         function startAutoSellInterval() {
@@ -420,22 +437,23 @@
             }
             
             if (gameState.autoSellBought && gameState.autoSellActive) {
+                const interval = calculateAutoSellInterval();
                 
-                // המכירה המיידית רצה כל 100ms
+                // לולאת המכירה האמיתית
                 autoSellIntervalId = setInterval(function() {
                     const quantity = calculateSaleQuantity(); 
                     const pricePer10 = calculateProfitSellPrice(); 
-                    // הרווח הכולל הוא כמות המכירה חלקי 10, כפול הרווח ל-10 יחידות
                     const totalMoneyReceived = (quantity / 10) * pricePer10;
 
                     if (gameState.honey >= quantity) {
                         gameState.honey -= quantity;
                         gameState.money += totalMoneyReceived;
-                        updateDisplay(); // מעדכן רק כשיש מכירה
+                        updateDisplay(); 
                         saveState(); 
                     }
-                }, AUTO_SELL_INTERVAL_MS);
-                console.log(`מכירה אוטומטית הופעלה. תדירות: ${AUTO_SELL_INTERVAL_MS / 1000} שניות.`);
+                }, interval);
+
+                console.log(`מכירה אוטומטית הופעלה. תדירות: ${interval / 1000} שניות.`);
             } else {
                 autoSellIntervalId = null;
                 console.log("מכירה אוטומטית כבויה או לא נרכשה.");
@@ -450,6 +468,7 @@
             const currentSaleQuantity = calculateSaleQuantity();
             const pricePer10 = calculateProfitSellPrice();
             const totalMoneyPerSale = (currentSaleQuantity / 10) * pricePer10;
+            const currentAutoSellInterval = calculateAutoSellInterval();
             
             // עדכון המדדים הראשיים
             document.getElementById("honey").textContent = Math.floor(gameState.honey);
@@ -458,6 +477,19 @@
             document.getElementById("production").textContent = production.toFixed(1);
             document.getElementById("profit-value").textContent = pricePer10 + '₪';
             document.getElementById("sale-quantity-display").textContent = currentSaleQuantity;
+            
+            // הצגת תדירות המכירה האוטומטית
+            const intervalDisplayEl = document.getElementById("auto-sell-interval-display");
+            if (gameState.autoSellBought) {
+                 if (currentAutoSellInterval === MIN_AUTO_SELL_INTERVAL_MS) {
+                    intervalDisplayEl.textContent = 'מיידי (0.1 שניות)';
+                 } else {
+                    intervalDisplayEl.textContent = (currentAutoSellInterval / 1000).toFixed(1) + ' שניות';
+                 }
+            } else {
+                intervalDisplayEl.textContent = 'לא נרכש';
+            }
+
 
             // עדכון מחיר המכירה הידנית
             document.getElementById("manual-sell-price").textContent = `${currentSaleQuantity} דבש = ${totalMoneyPerSale}₪`;
@@ -468,24 +500,39 @@
             document.getElementById("speed-level").textContent = gameState.speedLevel;
             document.getElementById("profit-level").textContent = gameState.profitLevel;
             document.getElementById("sale-quantity-level-display").textContent = currentSaleQuantity;
-            
+            document.getElementById("auto-sell-level-display").textContent = gameState.autoSellLevel;
+            document.getElementById("auto-sell-speed").textContent = (currentAutoSellInterval / 1000).toFixed(1) + ' שניות';
+
             // מחשב את העלות על בסיס הרמה
             document.getElementById("bee-cost").textContent = Math.floor(20 * Math.pow(1.5, gameState.bees - DEFAULT_GAME_STATE.bees)); 
             document.getElementById("hive-cost").textContent = Math.floor(100 * Math.pow(2, gameState.hiveLevel - 1));
             document.getElementById("speed-cost").textContent = Math.floor(50 * Math.pow(1.8, gameState.speedLevel - 1));
             document.getElementById("profit-cost").textContent = Math.floor(150 * Math.pow(1.6, gameState.profitLevel - 1));
-            
-            // עלויות שדרוג כמות מכירה
             document.getElementById("sale-quantity-cost").textContent = Math.floor(300 * Math.pow(2.5, gameState.saleQuantityLevel - 1));
 
             // עדכון כפתורי מכירה אוטומטית
             const autoSellStatusEl = document.getElementById("auto-sell-status");
             const autoSellBuyBtn = document.getElementById("auto-sell-btn-buy");
             const autoSellToggleBtn = document.getElementById("auto-sell-btn-toggle");
+            const autoSellUpgradeBtn = document.getElementById("auto-sell-btn-upgrade");
 
             if (gameState.autoSellBought) {
                 autoSellBuyBtn.style.display = 'none';
                 autoSellToggleBtn.style.display = 'inline-block';
+                
+                const isMaxSpeed = currentAutoSellInterval === MIN_AUTO_SELL_INTERVAL_MS;
+                
+                if (isMaxSpeed) {
+                    autoSellUpgradeBtn.textContent = 'מיידי (מהירות מקסימלית)';
+                    autoSellUpgradeBtn.style.display = 'inline-block';
+                    autoSellUpgradeBtn.disabled = true;
+                } else {
+                    const autoSellFreqCost = Math.floor(250 * Math.pow(1.5, gameState.autoSellLevel - 1));
+                    document.getElementById("auto-sell-freq-cost").textContent = autoSellFreqCost;
+                    autoSellUpgradeBtn.textContent = 'שדרג תדירות (' + autoSellFreqCost + '₪)';
+                    autoSellUpgradeBtn.style.display = 'inline-block';
+                    autoSellUpgradeBtn.disabled = false;
+                }
 
                 if (gameState.autoSellActive) {
                     autoSellStatusEl.textContent = "פעיל (מוכר)";
@@ -500,6 +547,7 @@
                 autoSellStatusEl.textContent = "לא נרכש";
                 autoSellBuyBtn.style.display = 'inline-block';
                 autoSellToggleBtn.style.display = 'none';
+                autoSellUpgradeBtn.style.display = 'none';
             }
         }
         
@@ -607,6 +655,7 @@
                 gameState.money -= 250;
                 gameState.autoSellBought = true;
                 gameState.autoSellActive = true; 
+                gameState.autoSellLevel = 1; // מאתחל לרמה 1
                 showNotification("✓ מכירה אוטומטית נרכשה והופעלה! 🤖");
                 updateDisplay();
                 startAutoSellInterval(); // הפעלת הלולאה
@@ -622,8 +671,29 @@
                 const statusText = gameState.autoSellActive ? "הופעלה" : "כובתה";
                 showNotification("✓ מכירה אוטומטית " + statusText);
                 updateDisplay();
-                startAutoSellInterval(); // הפעלה/כיבוי של הלולאה
+                startAutoSellInterval(); // הפעלה/כיבוי של הלולאה (עם התדירות הנוכחית)
                 saveState();
+            }
+        }
+
+        function upgradeAutoSellFrequency() {
+            const currentInterval = calculateAutoSellInterval();
+            if (currentInterval <= MIN_AUTO_SELL_INTERVAL_MS) {
+                 showNotification("❌ תדירות מקסימלית כבר הושגה (מיידי)!", false);
+                 return;
+            }
+            
+            var cost = Math.floor(250 * Math.pow(1.5, gameState.autoSellLevel - 1));
+
+            if (gameState.money >= cost) {
+                gameState.money -= cost;
+                gameState.autoSellLevel++;
+                showNotification("✓ תדירות המכירה האוטומטית שודרגה!");
+                updateDisplay();
+                startAutoSellInterval(); // הפעלת הלולאה מחדש עם תדירות חדשה
+                saveState(); 
+            } else {
+                showNotification("❌ אין מספיק כסף!", false);
             }
         }
         
@@ -633,7 +703,6 @@
             var production = gameState.bees * gameState.hiveLevel * gameState.speedLevel * 0.1;
             gameState.honey += production;
             updateDisplay();
-            // שמירת המצב מתבצעת גם בלולאת הייצור וגם במכירה האוטומטית
             saveState(); 
         }, 1000);
         
